@@ -61,12 +61,14 @@ class Client2Proxy(Thread):
             pass
 
         self.print_udp_pkt(pkt)
-        print pkt[DNS].summary()
-        print "\n"
         #Type your code here
 
-
-        dns_req = IP(dst=IP_DNS_SERVER, src=IP_LOCALHOST)/UDP(sport=PORT_CLIENT2PROXY, dport=53)/DNS(rd=1, qd=DNSQR(qname='www.google.com'))
+        #print pkt[DNSQR].summary()
+        qname = pkt[DNSQR].qname
+        rd = pkt[DNS].rd
+        #print "rd = " + str(rd)
+        
+        dns_req = IP(dst=IP_DNS_SERVER, src=IP_LOCALHOST)/UDP(sport=PORT_CLIENT2PROXY, dport=53)/DNS(rd=1, qd=DNSQR(qname=qname))
         #print dns_req[UDP].show()
         send(dns_req)
 
