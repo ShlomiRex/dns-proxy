@@ -170,10 +170,9 @@ class Server2Proxy(Thread):
 		'''
 
 		
-		#dns_res = IP(dst=IP_LOCALHOST, src=IP_LOCALHOST)/UDP(sport=PORT_SERVER2PROXY, dport=port_dst)/DNS(qr=1, qd=DNSQR(qname=qname))
-		dnslayer = pkt[DNS]
-		dns_res = IP(dst=IP_LOCALHOST, src=IP_LOCALHOST)/UDP(sport=PORT_CLIENT2PROXY, dport=port_dst)/dnslayer
 
+		dns_res = IP(dst=IP_LOCALHOST, src=IP_LOCALHOST)/UDP(sport=PORT_SERVER2PROXY, dport=53)/pkt[DNS]
+		
 		#dns_res = pkt
 		#dns_res[IP].src = IP_LOCALHOST
 		#dns_res[IP].dst = IP_LOCALHOST
@@ -187,7 +186,7 @@ class Server2Proxy(Thread):
 		self.prints("\n\n\n\n\n")
 		'''
 
-		self.prints(dns_res[IP].show())
+		#self.prints(dns_res[IP].show())
 		#self.print_udp_pkt(dns_res)
 		send(dns_res, verbose=False)
 
