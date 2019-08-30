@@ -1,66 +1,17 @@
 #!/usr/bin/env python
 
+import struct
 from threading import Thread
 from scapy.all import *
 
-'''
-COUNTSEND = 3
-DNS_QUERY_MESSAGE_HEADER = struct.Struct("!6H")
-OFFSET = DNS_QUERY_MESSAGE_HEADER.size
-'''
 
-IP_LOCALHOST = "10.0.0.2"
-IP_DNS_SERVER = "1.1.1.1"
+IP_LOCALHOST = "10.0.0.2" #Your pc local ip
+IP_DNS_SERVER = "10.0.0.151" #My own dns server at home (for you it's usually the gateway)
 
-PORT_CLIENT2PROXY = 53000
-PORT_PROXY2SERVER = 53000
-
-
-
-
-def decode_dns_message(message):
-
-    id, misc, qdcount, ancount, nscount, arcount = DNS_QUERY_MESSAGE_HEADER.unpack_from(message)
-
-    qr = (misc & 0x8000) != 0
-    opcode = (misc & 0x7800) >> 11
-    aa = (misc & 0x0400) != 0
-    tc = (misc & 0x200) != 0
-    rd = (misc & 0x100) != 0
-    ra = (misc & 0x80) != 0
-    z = (misc & 0x70) >> 4
-    rcode = misc & 0xF
-
-    questions, offset1 = decode_question_section(message, OFFSET, qdcount)
-
-    result = {"id": id,
-              "is_response": qr,
-              "opcode": opcode,
-              "is_authoritative": aa,
-              "is_truncated": tc,
-              "recursion_desired": rd,
-              "recursion_available": ra,
-              "reserved": z,
-              "response_code": rcode,
-              "question_count": qdcount,
-              "answer_count": ancount,
-              "authority_count": nscount,
-              "additional_count": arcount,
-              "questions": questions}
-
-
-    #started here
-    if (result.qr == 0):
-        oldPort = rcvPkt[IP].sport
-        sendPort = find_free_port()
-        rcvPkt[IP].sport = sendPort
-
-        send(rcvPkt, count=COUNTSEND, verbose=False)
-
-
-        
-
-    return result
+                              #src port of client is random
+                              #dst port of client is 53 at default
+PORT_CLIENT2PROXY = 53000     #Port of Proxy that listens to client
+PORT_SERVER2PROXY = 53001     #Port of proxy that listens to server's answers
 
 
 #Client <---> Proxy
@@ -73,33 +24,45 @@ class Client2Proxy(Thread):
 
     def run(self):
         print "[Client2Proxy] Running..."
-        sniff(iface="lo", prn= self.dns_sniff )
+        #filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
+        #filter = "ip src host " + IP_LOCALHOST + " and udp"
+        filter = "ip and udp"
+        sniff(prn= self.dns_sniff , filter=filter)
         print "[Client2Proxy] Done"
 
     def dns_sniff(self, pkt):
-        if IP not in pkt:
+        #Only DNS in UDP protocol
+        if pkt.haslayer(DNS) == False:
             return
         
         ip_src = pkt[IP].src
         ip_dst = pkt[IP].dst
-
-        #if ip_src != "10.0.0.2" and ip_dst != "10.0.0.2":
-            #return
-
-        #Only DNS in UDP protocol
-        if pkt.haslayer(UDP) == False or pkt.haslayer(DNS) == False:
-            return
-
-        port_src = pkt[UDP].sport
+        
+        port_src = pkt[UDP].sport #Usually random number, not useful
         port_dst = pkt[UDP].dport
 
-        if port_src == 53000 or port_dst == 53000:
-            self.print_udp_pkt(pkt)
-            print pkt[DNS]
+        if ip_src != IP_LOCALHOST and ip_dst != IP_LOCALHOST:
+            return
 
         if pkt.getlayer(DNS).qr == 0:
-            #print "DNS Query:"
+            #Request
+            print "[Client2Proxy] DNS Request"
+            print "-----------------------------"
             pass
+        elif pkt.getlayer(DNS).qr == 1:
+            #Response
+            print "[Client2Proxy] DNS Response"
+            print "-----------------------------"
+            pass
+
+        #Type your code here
+
+        self.print_udp_pkt(pkt)
+        print pkt[DNS].summary()
+        print "\n"
+
+
+        
 
     def print_udp_pkt(self, pkt):
             ip_src = pkt[IP].src
@@ -115,9 +78,8 @@ class Client2Proxy(Thread):
 #Proxy <---> Server
 #Server <---> Proxy
 class Proxy2Server(Thread):
-    def __init__(self, host, port, server_ip):
+    def __init__(self, host, server_ip):
 		super(Proxy2Server, self).__init__()
-		self.port = port
 		self.host = host
 		self.server_ip = server_ip
 
@@ -138,7 +100,7 @@ class Proxy(Thread):
 			print "[Proxy] Running..."
 
 			self.c2p = Client2Proxy(IP_LOCALHOST, PORT_CLIENT2PROXY)
-			self.p2s = Proxy2Server(IP_LOCALHOST, PORT_PROXY2SERVER, IP_DNS_SERVER)
+			self.p2s = Proxy2Server(IP_LOCALHOST, IP_DNS_SERVER)
 
 			#self.c2p.daemon = True
 			#self.p2s.daemon = True
@@ -161,12 +123,4 @@ class Proxy(Thread):
 
 
 
-master_server = Proxy()
-master_server.start()
-
-'''
-print "Sniffing..."
-#sniff(filter = 'dst port 53000', prn=dnsSend)
-sniff(iface="lo", prn=dns_sniff) #choosing local interface is important, because if we choose destination port ot be localhost, packets wont show up (tested)
-print "Done sniffing"
-'''
+Proxy().start()

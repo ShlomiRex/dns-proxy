@@ -1,0 +1,4 @@
+https://scapy.readthedocs.io/en/latest/usage.html#arp-cache-poisoning
+
+https://github.com/mistahenry/DNS-Cache-Poisoning-with-Scapy
+

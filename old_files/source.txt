@@ -1,0 +1,6 @@
+basic: https://stackoverflow.com/questions/16977588/reading-dns-packets-in-python
+check DNS type: https://jon.oberheide.org/blog/2008/12/20/dpkt-tutorial-3-dns-spoofing/
+thread: https://stackoverflow.com/questions/2905965/creating-threads-in-python
+https://thepacketgeek.com/scapy-p-09-scapy-and-dns/
+scapy IP hendle: https://stackoverflow.com/questions/26678495/scapy-packet-manipulation-and-original-pkt-time
+
