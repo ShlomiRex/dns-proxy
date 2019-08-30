@@ -13,21 +13,19 @@ IP_DNS_SERVER = "10.0.0.151" #My own dns server at home (for you it's usually th
 PORT_CLIENT2PROXY = 53000     #Port of Proxy that listens to client
 PORT_SERVER2PROXY = 53001     #Port of proxy that listens to server's answers
 
-
 #Client <---> Proxy
 #Proxy <---> Client
 class Client2Proxy(Thread):
-    def __init__(self, host, port):
+    last_dns_packet = None
+    def __init__(self):
         super(Client2Proxy, self).__init__()
-        self.port = port
-        self.host = host
 
     def run(self):
         print "[Client2Proxy] Running..."
         #filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
-        #filter = "ip src host " + IP_LOCALHOST + " and udp"
-        filter = "ip and udp"
-        sniff(prn= self.dns_sniff , filter=filter)
+        filter = "ip dst host " + IP_LOCALHOST + " and udp and src host " + IP_LOCALHOST
+        #filter = "ip and udp"
+        sniff(iface = "lo", prn= self.dns_sniff , filter=filter)
         print "[Client2Proxy] Done"
 
     def dns_sniff(self, pkt):
@@ -37,12 +35,19 @@ class Client2Proxy(Thread):
         
         ip_src = pkt[IP].src
         ip_dst = pkt[IP].dst
-        
+
         port_src = pkt[UDP].sport #Usually random number, not useful
         port_dst = pkt[UDP].dport
 
-        if ip_src != IP_LOCALHOST and ip_dst != IP_LOCALHOST:
+        if ip_src != IP_LOCALHOST:
             return
+
+        #Skip double packets (leave and enter)
+        #See: https://stackoverflow.com/questions/52232080/scapy-sniff-the-packet-multiple-times
+        if self.last_dns_packet == pkt:
+            return
+
+        self.last_dns_packet = pkt
 
         if pkt.getlayer(DNS).qr == 0:
             #Request
@@ -55,14 +60,16 @@ class Client2Proxy(Thread):
             print "-----------------------------"
             pass
 
-        #Type your code here
-
         self.print_udp_pkt(pkt)
         print pkt[DNS].summary()
         print "\n"
+        #Type your code here
 
 
-        
+        dns_req = IP(dst=IP_DNS_SERVER, src=IP_LOCALHOST)/UDP(sport=PORT_CLIENT2PROXY, dport=53)/DNS(rd=1, qd=DNSQR(qname='www.google.com'))
+        #print dns_req[UDP].show()
+        send(dns_req)
+
 
     def print_udp_pkt(self, pkt):
             ip_src = pkt[IP].src
@@ -78,10 +85,8 @@ class Client2Proxy(Thread):
 #Proxy <---> Server
 #Server <---> Proxy
 class Proxy2Server(Thread):
-    def __init__(self, host, server_ip):
+    def __init__(self):
 		super(Proxy2Server, self).__init__()
-		self.host = host
-		self.server_ip = server_ip
 
     def run(self):
 		print "[Proxy2Server] Running..."
@@ -99,8 +104,8 @@ class Proxy(Thread):
 		try:
 			print "[Proxy] Running..."
 
-			self.c2p = Client2Proxy(IP_LOCALHOST, PORT_CLIENT2PROXY)
-			self.p2s = Proxy2Server(IP_LOCALHOST, IP_DNS_SERVER)
+			self.c2p = Client2Proxy()
+			self.p2s = Proxy2Server()
 
 			#self.c2p.daemon = True
 			#self.p2s.daemon = True

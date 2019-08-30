@@ -1,5 +1,8 @@
 Capture filter:
-ip and udp and host 10.0.0.2 and dst host 10.0.0.151
+ip and udp
 
-local ip = 10.0.0.2
-dns server = 10.0.0.151 (pihole - my own server at home)
+Filter: 
+dns and dns.qry.name == "www.google.com"
+
+Other filets i use:
+dns and (ip.src == 10.0.0.2 and ip.dst == 10.0.0.151) or (ip.src == 10.0.0.151 and ip.dst == 10.0.0.2)
