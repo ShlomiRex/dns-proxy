@@ -1,3 +1,0 @@
-https://www.sans.org/security-resources/tcpip.pdf
-
-https://blogs.sans.org/pen-testing/files/2016/04/ScapyCheatSheet_v0.2.pdf
