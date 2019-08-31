@@ -4,6 +4,8 @@ import struct
 from threading import Thread
 from scapy.all import *
 
+#################### Constants ####################
+
 IP_LOCALHOST = "172.17.0.2" #Your pc local ip
 IP_CLIENT = "10.0.0.2"      #Client IP (that needs to use the proxy)
 IP_DNS_SERVER = "10.0.0.151" #My own dns server at home (for you it's usually the gateway)
@@ -16,7 +18,16 @@ PORT_SERVER2PROXY = 53001     #Port of proxy that listens to server's answers
 INTERFACE_NAME = "eth0"       #Network interface name to capture Client2Proxy packets
 
 DEBUG_CLIENT2PROXY = False
-DEBUG_SERVER2PROXY = True
+DEBUG_SERVER2PROXY = False
+DEBUG_WAIT4ANSWERS = True
+
+WAIT4ANSWERS_MS = 1500        #miliseconds to wait to allow time to gather multiple answers
+
+
+#################### Global Variables1e ####################
+
+answers_time = 0   # If it goes above WAIT4ANSWERS_MS then stop gathering answers
+answers_cache = []
 
 #Client <---> Proxy
 #Proxy <---> Client
@@ -26,12 +37,12 @@ class Client2Proxy(Thread):
 		super(Client2Proxy, self).__init__()
 
 	def run(self):
-		print "[Client2Proxy] Running..."
+		self.prints("[Client2Proxy] Running...")
 		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
 		filter = "ip dst host " + IP_LOCALHOST + " and udp"
 		#filter = "ip and udp"
 		sniff(iface= INTERFACE_NAME, prn= self.dns_sniff, filter=filter)
-		print "[Client2Proxy] Done"
+		self.prints("[Client2Proxy] Done")
 
 	def dns_sniff(self, pkt):
 		#Only DNS in UDP protocol
@@ -107,14 +118,14 @@ class Server2Proxy(Thread):
 		super(Server2Proxy, self).__init__()
 
 	def run(self):
-		print "[Server2Proxy] Running..."
+		self.prints("[Server2Proxy] Running...")
 
 		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
 		filter = "ip dst host " + IP_LOCALHOST + " and udp and src host " + IP_DNS_SERVER
 		#filter = "ip and udp"
 		sniff(prn= self.dns_sniff , filter=filter)
 
-		print "[Server2Proxy] Done"
+		self.prints("[Server2Proxy] Done")
 	def dns_sniff(self, pkt):
 		#Only DNS in UDP protocol
 		if pkt.haslayer(DNS) == False or pkt.haslayer(DNSRR) == False:
@@ -232,5 +243,32 @@ class Proxy(Thread):
 
 
 
+class Wait4Answers(Thread):
+	def __init__(self):
+		super(Wait4Answers, self).__init__()
+
+	def run(self):
+		self.prints("[Wait4Answers] Running...")
+		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
+		filter = "ip dst host " + IP_LOCALHOST + " and udp and src host " + IP_DNS_SERVER
+		#filter = "ip and udp"
+		sniff(prn= self.dns_sniff , filter=filter)
+		self.prints("[Wait4Answers] Done")
+	
+	def prints(self, str):
+		if DEBUG_WAIT4ANSWERS:
+			print str
+	
+	def print_udp_pkt(pkt):#
+		ip_src = pkt[IP].src
+		ip_dst = pkt[IP].dst
+		port_src = pkt[UDP].sport
+		port_dst = pkt[UDP].dport
+
+		self.prints(str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst))
+
+
+
+#################### Program starts here ####################
 
 Proxy().start()
