@@ -4,8 +4,8 @@ import struct
 from threading import Thread
 from scapy.all import *
 
-
 IP_LOCALHOST = "172.17.0.2" #Your pc local ip
+IP_CLIENT = "10.0.0.2"      #Client IP (that needs to use the proxy)
 IP_DNS_SERVER = "10.0.0.151" #My own dns server at home (for you it's usually the gateway)
 
 							  #src port of client is random
@@ -116,7 +116,6 @@ class Server2Proxy(Thread):
 
 		print "[Server2Proxy] Done"
 	def dns_sniff(self, pkt):
-
 		#Only DNS in UDP protocol
 		if pkt.haslayer(DNS) == False or pkt.haslayer(DNSRR) == False:
 			return
@@ -132,7 +131,6 @@ class Server2Proxy(Thread):
 
 		if port_dst != PORT_SERVER2PROXY:
 			return
-
 		#Skip double packets (leave and enter)
 		#See: https://stackoverflow.com/questions/52232080/scapy-sniff-the-packet-multiple-times
 		if self.last_dns_packet == pkt:
@@ -168,7 +166,8 @@ class Server2Proxy(Thread):
 
 		
 
-		dns_res = IP(dst=IP_LOCALHOST, src=IP_LOCALHOST)/UDP(sport=PORT_SERVER2PROXY, dport=53)/pkt[DNS]
+		#TODO: Change dst ip to be the origional IP of the requestee
+		dns_res = IP(dst=IP_CLIENT, src=IP_LOCALHOST)/UDP(sport=PORT_SERVER2PROXY, dport=53)/pkt[DNS]
 		
 		#dns_res = pkt
 		#dns_res[IP].src = IP_LOCALHOST
