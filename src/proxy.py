@@ -5,13 +5,15 @@ from threading import Thread
 from scapy.all import *
 
 
-IP_LOCALHOST = "10.0.0.2" #Your pc local ip
+IP_LOCALHOST = "172.17.0.2" #Your pc local ip
 IP_DNS_SERVER = "10.0.0.151" #My own dns server at home (for you it's usually the gateway)
 
 							  #src port of client is random
 							  #dst port of client is 53 at default
 PORT_CLIENT2PROXY = 53000     #Port of Proxy that listens to client
 PORT_SERVER2PROXY = 53001     #Port of proxy that listens to server's answers
+
+INTERFACE_NAME = "eth0"       #Network interface name to capture Client2Proxy packets
 
 DEBUG_CLIENT2PROXY = False
 DEBUG_SERVER2PROXY = True
@@ -26,19 +28,17 @@ class Client2Proxy(Thread):
 	def run(self):
 		print "[Client2Proxy] Running..."
 		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
-		filter = "ip dst host " + IP_LOCALHOST + " and udp and src host " + IP_LOCALHOST
+		filter = "ip dst host " + IP_LOCALHOST + " and udp"
 		#filter = "ip and udp"
-		sniff(iface = "lo", prn= self.dns_sniff , filter=filter)
+		sniff(iface= INTERFACE_NAME, prn= self.dns_sniff, filter=filter)
 		print "[Client2Proxy] Done"
 
 	def dns_sniff(self, pkt):
 		#Only DNS in UDP protocol
 		if pkt.haslayer(DNS) == False or pkt.haslayer(DNSQR) == False:
 			return
-
 		if pkt[DNS].qr == "1":
 			return
-		
 		ip_src = pkt[IP].src
 		ip_dst = pkt[IP].dst
 
@@ -46,9 +46,6 @@ class Client2Proxy(Thread):
 		port_dst = pkt[UDP].dport
 
 		if port_dst != PORT_CLIENT2PROXY:
-			return
-
-		if ip_src != IP_LOCALHOST:
 			return
 
 		#Skip double packets (leave and enter)
