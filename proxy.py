@@ -15,8 +15,8 @@ PORT_SERVER_DNS = 53
 DEBUG_SERVER2PROXY = True
 DEBUG_WAIT4ANSWERS = False
 
-WAIT4ANSWERS_SECONDS = 5        #time to wait to allow time to gather multiple answers
-REQUEST_WAIT_FOR_THREAD = 0.1
+WAIT4ANSWERS_SECONDS = 2        #time to wait to allow time to gather multiple answers
+REQUEST_WAIT_FOR_THREAD = 0.2
 
 
 #################### Global Variables1e ####################
@@ -61,6 +61,8 @@ def dns_sniff(pkt):
 	print "-----------------------------"
 	print_udp_pkt(pkt)
 
+	answers_cache.append(pkt)
+
 
 #################### Program starts here ####################
 
@@ -77,6 +79,17 @@ def wait4answers():
 	sniff(prn=dns_sniff, filter=filter, timeout=WAIT4ANSWERS_SECONDS)
 	print "[wait4answers] Done"
 
+def begin(query_name):
+		thread = Thread(target = wait4answers)
+		thread.start()
+		time.sleep(REQUEST_WAIT_FOR_THREAD)
+		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname=query_name))
+		send(dns_req)
+		thread.join()
+		print "# of Answers got: " + str(len(answers_cache))
+		global answers_cache
+		answers_cache = []
+		
 
 while True:
     print_console()
@@ -84,48 +97,9 @@ while True:
     if num == 0:
         exit()
     elif num == 1:
-		thread = Thread(target = wait4answers)
-
-		thread.start()
-		time.sleep(REQUEST_WAIT_FOR_THREAD)
-		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname='www.google.com'))
-		send(dns_req)
-		thread.join()
+		begin("www.google.com")
 
     elif num == 2:
-		thread = Thread(target = wait4answers)
-
-		thread.start()
-		time.sleep(REQUEST_WAIT_FOR_THREAD)
-		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname='www.youtube.com'))
-		send(dns_req)
-		thread.join()
+		begin("www.youtube.com")
 
     print "\n\n"
-
-
-'''
-class Wait4Answers(Thread):
-	def __init__(self):
-		super(Wait4Answers, self).__init__()
-
-	def run(self):
-		self.prints("[Wait4Answers] Running...")
-		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
-		filter = "ip dst host " + IP_LOCALHOST + " and udp and src host " + IP_DNS_SERVER
-		#filter = "ip and udp"
-		sniff(prn= self.dns_sniff , filter=filter)
-		self.prints("[Wait4Answers] Done")
-	
-	def prints(self, str):
-		if DEBUG_WAIT4ANSWERS:
-			print str
-	
-	def print_udp_pkt(pkt):#
-		ip_src = pkt[IP].src
-		ip_dst = pkt[IP].dst
-		port_src = pkt[UDP].sport
-		port_dst = pkt[UDP].dport
-
-		self.prints(str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst))
-'''
