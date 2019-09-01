@@ -20,19 +20,22 @@ REQUEST_WAIT_FOR_THREAD = 0.2
 
 
 #################### Global Variables1e ####################
-answers_cache = []
+answers_cache = []     # All answers (packets only)
 
-def print_udp_pkt(pkt):#
+def print_udp_pkt(pkt):
 	ip_src = pkt[IP].src
 	ip_dst = pkt[IP].dst
 	port_src = pkt[UDP].sport
 	port_dst = pkt[UDP].dport
-
 	print str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst)
 
 def dns_sniff(pkt):
 	print_udp_pkt(pkt)
-
+	#print "@@@@@@@@@@@@@@@@ PKT \n\n"
+	#print pkt[DNS].an[0].show()
+	#if pkt[DNS].ancount == 2:
+		#print pkt[DNS].an[1].show()
+	#print "\n\n\n"
 	answers_cache.append(pkt)
 
 
@@ -51,15 +54,21 @@ def wait4answers():
 	sniff(prn=dns_sniff, filter=filter, timeout=WAIT4ANSWERS_SECONDS)
 	print "[wait4answers] Done"
 
+# Return 0 if not under attack
+# Return 1 if under attack
 def analyze():
+	l = len(answers_cache)
+	if l == 0 or l == 1:
+		return 0
+
 	ans = []
-	if(len(answers_cache)>0):
-		for x in range(answers_cache[0][DNS].ancount):
-			ans.append(answers_cache[0][DNSRR][x].rdata)
-		for i in range (1, len(answers_cache)):
-			for x in range(answers_cache[i][DNS].ancount):
-				if (not answers_cache[i][DNSRR][x].rdata in ans):
-					return 1
+
+	for x in range(answers_cache[0][DNS].ancount):
+		ans.append(answers_cache[0][DNSRR][x].rdata)
+	for i in range (1, len(answers_cache)):
+		for x in range(answers_cache[i][DNS].ancount):
+			if (not answers_cache[i][DNSRR][x].rdata in ans):
+				return 1
 	return 0
 
 def begin(query_name):
@@ -67,7 +76,7 @@ def begin(query_name):
 		thread.start()
 		time.sleep(REQUEST_WAIT_FOR_THREAD)
 		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname=query_name))
-		send(dns_req, count = 2)
+		send(dns_req)
 		thread.join()
 		print "# of Answers got: " + str(len(answers_cache))+"\n\n"
 
