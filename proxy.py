@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-import struct
 from threading import Thread
 from scapy.all import *
+import time
 
 #################### Constants ####################
 
@@ -10,72 +10,60 @@ IP_LOCALHOST = "127.0.0.1"
 IP_DNS_SERVER = "1.1.1.1"
 
 PORT_SERVER2PROXY = 53000   
+PORT_SERVER_DNS = 53
 
 DEBUG_SERVER2PROXY = True
 DEBUG_WAIT4ANSWERS = False
 
-WAIT4ANSWERS_MS = 3000        #miliseconds to wait to allow time to gather multiple answers
+WAIT4ANSWERS_SECONDS = 5        #time to wait to allow time to gather multiple answers
+REQUEST_WAIT_FOR_THREAD = 0.1
 
 
 #################### Global Variables1e ####################
-
+'''
 answers_time = 0   # If it goes above WAIT4ANSWERS_MS then stop gathering answers
 answers_cache = []
+filterPkt = "udp and port 53 and dst port 53000"
+packets=[]
+def addAnswer(pkt):
+	packets.append(pkt)
+def getAnswers():
+	sniff(prn = addAnswer, timeout = WAIT4ANSWERS_MS, filter = "filterPkt")
+	for (pkt in packets):
+'''
+answers_cache = []
 
+def print_udp_pkt(pkt):#
+	ip_src = pkt[IP].src
+	ip_dst = pkt[IP].dst
+	port_src = pkt[UDP].sport
+	port_dst = pkt[UDP].dport
 
+	print str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst)
+	print "\n"
 
+def dns_sniff(pkt):
+	if pkt.haslayer(DNS) == False or pkt.haslayer(DNSRR) == False:
+		return
 
+	ip_src = pkt[IP].src
+	ip_dst = pkt[IP].dst
 
-class Server2Proxy(Thread):
-	#last_dns_packet = None
-	def __init__(self):
-		super(Server2Proxy, self).__init__()
+	port_src = pkt[UDP].sport
+	port_dst = pkt[UDP].dport
 
-	def run(self):
-		self.prints("[Server2Proxy] Running...")
+	#print "dst = " +str(port_dst)
 
-		filter = "ip and udp"
-		sniff(prn= self.dns_sniff, filter=filter)
+	if port_dst != PORT_SERVER2PROXY:
+		return
+	
+	print "DNS Response"
+	print "-----------------------------"
+	print_udp_pkt(pkt)
 
-		self.prints("[Server2Proxy] Done")
-	def dns_sniff(self, pkt):
-		if pkt.haslayer(DNS) == False or pkt.haslayer(DNSRR) == False:
-			return
-
-		ip_src = pkt[IP].src
-		ip_dst = pkt[IP].dst
-
-		port_src = pkt[UDP].sport
-		port_dst = pkt[UDP].dport
-
-		if port_dst != PORT_SERVER2PROXY:
-			return
-
-		#Skip double packets (leave and enter)
-		#See: https://stackoverflow.com/questions/52232080/scapy-sniff-the-packet-multiple-times
-		#if self.last_dns_packet == pkt:
-			#returnIP_LOCALHOST
-
-		#self.last_dns_packet = pkt
-
-		self.prints("[Server2Proxy] DNS Response")
-		self.prints("-----------------------------")
-		self.print_udp_pkt(pkt)
-
-	def prints(self, str):
-		if DEBUG_SERVER2PROXY:
-			print str
-
-	def print_udp_pkt(self, pkt):#
-		ip_src = pkt[IP].src
-		ip_dst = pkt[IP].dst
-		port_src = pkt[UDP].sport
-		port_dst = pkt[UDP].dport
-
-		self.prints(str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst))
-		self.prints("\n")
 
 #################### Program starts here ####################
+
 
 
 def print_console():
@@ -83,9 +71,12 @@ def print_console():
     print "[1] Google"
     print "[2] YouTube"
 
-p2s = Server2Proxy()
-p2s.start()
-p2s.join()
+def wait4answers():
+	print "[wait4answers] Running..."
+	filter = "ip and udp"
+	sniff(prn=dns_sniff, filter=filter, timeout=WAIT4ANSWERS_SECONDS)
+	print "[wait4answers] Done"
+
 
 while True:
     print_console()
@@ -93,11 +84,23 @@ while True:
     if num == 0:
         exit()
     elif num == 1:
-		dns_req = IP(dst=server)/UDP(sport=sport, dport=dport)/DNS(rd=1, qd=DNSQR(qname='www.google.com'))
-    	send(dns_req)
+		thread = Thread(target = wait4answers)
+
+		thread.start()
+		time.sleep(REQUEST_WAIT_FOR_THREAD)
+		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname='www.google.com'))
+		send(dns_req)
+		thread.join()
+
     elif num == 2:
-		dns_req = IP(dst=server)/UDP(sport=sport, dport=dport)/DNS(rd=1, qd=DNSQR(qname='www.youtube.com'))
-    	send(dns_req)
+		thread = Thread(target = wait4answers)
+
+		thread.start()
+		time.sleep(REQUEST_WAIT_FOR_THREAD)
+		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname='www.youtube.com'))
+		send(dns_req)
+		thread.join()
+
     print "\n\n"
 
 
