@@ -3,5 +3,5 @@ sudo docker container rm proxycontainer
 dir=$(pwd)
 dir+=/src
 echo $dir
-sudo docker build -t ubuntu:proxy .
-sudo docker create --volume /$dir:/src -it  --name proxycontainer ubuntu:proxy
+sudo docker build -t ubuntu:proxybase .
+sudo docker create --volume /$dir:/src -it  --name proxycontainer ubuntu:proxybase
