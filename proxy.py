@@ -9,13 +9,12 @@ from scapy.all import *
 IP_LOCALHOST = "127.0.0.1"
 IP_DNS_SERVER = "1.1.1.1"
 
-PORT_SERVER2PROXY = 53000     #Port of proxy that listens to server's answers
+PORT_SERVER2PROXY = 53000   
 
-DEBUG_CLIENT2PROXY = False
 DEBUG_SERVER2PROXY = True
 DEBUG_WAIT4ANSWERS = False
 
-WAIT4ANSWERS_MS = 1500        #miliseconds to wait to allow time to gather multiple answers
+WAIT4ANSWERS_MS = 3000        #miliseconds to wait to allow time to gather multiple answers
 
 
 #################### Global Variables1e ####################
@@ -23,16 +22,18 @@ WAIT4ANSWERS_MS = 1500        #miliseconds to wait to allow time to gather multi
 answers_time = 0   # If it goes above WAIT4ANSWERS_MS then stop gathering answers
 answers_cache = []
 
+
+
+
+
 class Server2Proxy(Thread):
-	last_dns_packet = None
+	#last_dns_packet = None
 	def __init__(self):
 		super(Server2Proxy, self).__init__()
 
 	def run(self):
 		self.prints("[Server2Proxy] Running...")
 
-		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
-		#filter = "udp and src host " + IP_DNS_SERVER
 		filter = "ip and udp"
 		sniff(prn= self.dns_sniff, filter=filter)
 
@@ -52,10 +53,10 @@ class Server2Proxy(Thread):
 
 		#Skip double packets (leave and enter)
 		#See: https://stackoverflow.com/questions/52232080/scapy-sniff-the-packet-multiple-times
-		if self.last_dns_packet == pkt:
-			returnIP_LOCALHOST
+		#if self.last_dns_packet == pkt:
+			#returnIP_LOCALHOST
 
-		self.last_dns_packet = pkt
+		#self.last_dns_packet = pkt
 
 		self.prints("[Server2Proxy] DNS Response")
 		self.prints("-----------------------------")
@@ -76,11 +77,29 @@ class Server2Proxy(Thread):
 
 #################### Program starts here ####################
 
-print "[Proxy] Running..."
+
+def print_console():
+    print "[0] <exit>"
+    print "[1] Google"
+    print "[2] YouTube"
+
 p2s = Server2Proxy()
 p2s.start()
 p2s.join()
-print "[Proxy] Done"
+
+while True:
+    print_console()
+    num = input("Enter your function number to run: ")
+    if num == 0:
+        exit()
+    elif num == 1:
+		dns_req = IP(dst=server)/UDP(sport=sport, dport=dport)/DNS(rd=1, qd=DNSQR(qname='www.google.com'))
+    	send(dns_req)
+    elif num == 2:
+		dns_req = IP(dst=server)/UDP(sport=sport, dport=dport)/DNS(rd=1, qd=DNSQR(qname='www.youtube.com'))
+    	send(dns_req)
+    print "\n\n"
+
 
 '''
 class Wait4Answers(Thread):
