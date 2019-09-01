@@ -20,17 +20,6 @@ REQUEST_WAIT_FOR_THREAD = 0.2
 
 
 #################### Global Variables1e ####################
-'''
-answers_time = 0   # If it goes above WAIT4ANSWERS_MS then stop gathering answers
-answers_cache = []
-filterPkt = "udp and port 53 and dst port 53000"
-packets=[]
-def addAnswer(pkt):
-	packets.append(pkt)
-def getAnswers():
-	sniff(prn = addAnswer, timeout = WAIT4ANSWERS_MS, filter = "filterPkt")
-	for (pkt in packets):
-'''
 answers_cache = []
 
 def print_udp_pkt(pkt):#
