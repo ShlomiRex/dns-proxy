@@ -59,9 +59,8 @@ def analyze():
 		for i in range (1, len(answers_cache)):
 			for x in range(answers_cache[i][DNS].ancount):
 				if (not answers_cache[i][DNSRR][x].rdata in ans):
-					print "!!!!!!!!!!!!!"
-				else:
-					print "good"
+					return 1
+	return 0
 
 def begin(query_name):
 		thread = Thread(target = wait4answers)
@@ -71,9 +70,10 @@ def begin(query_name):
 		send(dns_req, count = 2)
 		thread.join()
 		print "# of Answers got: " + str(len(answers_cache))+"\n\n"
-		print "analyze answers:"
 
-		analyze()
+		print "analyze answers:"
+		status = analyze()
+		print "status =" + str(status)
 				
 		global answers_cache
 		answers_cache = []
