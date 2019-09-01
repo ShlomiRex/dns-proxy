@@ -14,31 +14,36 @@ PORT_SERVER_DNS = 53
 
 DEBUG_SERVER2PROXY = True
 DEBUG_WAIT4ANSWERS = False
+DEBUG_CACHE = False
 
 WAIT4ANSWERS_SECONDS = 4        #time to wait to allow time to gather multiple answers
 REQUEST_WAIT_FOR_THREAD = 0.2
 
 
 #################### Global Variables1e ####################
-answers_cache = []     # All answers (packets only)
+answers_cache = []
+cache = {}
 
-def print_udp_pkt(pkt):
+def print_udp_pkt(pkt):#
 	ip_src = pkt[IP].src
 	ip_dst = pkt[IP].dst
 	port_src = pkt[UDP].sport
 	port_dst = pkt[UDP].dport
+
 	print str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst)
 
 def dns_sniff(pkt):
 	print_udp_pkt(pkt)
-	#print "@@@@@@@@@@@@@@@@ PKT \n\n"
-	#print pkt[DNS].an[0].show()
-	#if pkt[DNS].ancount == 2:
-		#print pkt[DNS].an[1].show()
-	#print "\n\n\n"
+
 	answers_cache.append(pkt)
 
 
+#################### Program starts here ####################
+
+def statusDoc():
+	print "[0] worked well"
+	print "[1] conflict"
+	print "[2] no masseges returns"
 
 
 def print_console():
@@ -54,41 +59,78 @@ def wait4answers():
 	sniff(prn=dns_sniff, filter=filter, timeout=WAIT4ANSWERS_SECONDS)
 	print "[wait4answers] Done"
 
-# Return 0 if not under attack
-# Return 1 if under attack
-def analyze():
-	l = len(answers_cache)
-	if l == 0 or l == 1:
-		return 0
+def hasCache():
+	ans = cache.get(answers_cache[0][DNS].qd[0].qname) #compare from the cache
+	for i in range (len(answers_cache)):			 #for each pkts:
+		#print answers_cache[i][DNS].show()
+		mache = False
+		pktAns=[]
+		for x in range(answers_cache[i][DNS].ancount): #compare from other pkt to cache
+			if (answers_cache[i][DNSRR][x].rdata in ans):
+				print "mache"
+				mache = True
+				pktAns.append(answers_cache[i][DNSRR][x].rdata)
+		if(mache):										#return the first maches pkt
+			return 0, pktAns
+	return 1, []										#no pkt mached
 
+def noCache():
 	ans = []
-
-	for x in range(answers_cache[0][DNS].ancount):
+	for x in range(answers_cache[0][DNS].ancount): 	#compare from the first pkt
 		ans.append(answers_cache[0][DNSRR][x].rdata)
-	for i in range (1, len(answers_cache)):
-		for x in range(answers_cache[i][DNS].ancount):
-			if (not answers_cache[i][DNSRR][x].rdata in ans):
-				return 1
-	return 0
+	for i in range (1, len(answers_cache)):			 #for each other pkts:
+		#print answers_cache[i][DNS].show()
+		mache = False
+		pktAns=[]
+		for x in range(answers_cache[i][DNS].ancount): #compare from other pkt to first pkt
+			if (answers_cache[i][DNSRR][x].rdata in ans):
+				print "mache"
+				mache = True
+				pktAns.append(answers_cache[i][DNSRR][x].rdata)
+		if(not mache):
+			return 1, []
+		print pktAns
+		for x in range(len(ans)):					#compare from first pkt to other pkt
+			if (not ans[x] in pktAns):
+				print "pop"
+				ans.pop(x)
+		if len(ans)==0:
+			return 1, []
+	return 0, ans
+
+def analyze():
+	if(len(answers_cache)>0):
+		if (not cache.get(answers_cache[0][DNS].qd[0].qname) is None) and (DEBUG_CACHE):
+			status, ans = hasCache()
+			if status == 0:
+				return status, ans
+		#no cache or not maches to cache
+		status, ans = noCache()
+		if status == 0:
+			cache[answers_cache[0][DNS].qd[0].qname] = ans
+		return status, ans
+	else:
+		return 2, []
 
 def begin(query_name):
 		thread = Thread(target = wait4answers)
 		thread.start()
 		time.sleep(REQUEST_WAIT_FOR_THREAD)
 		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname=query_name))
-		send(dns_req)
+		send(dns_req, count = 2)
 		thread.join()
 		print "# of Answers got: " + str(len(answers_cache))+"\n\n"
 
 		print "analyze answers:"
-		status = analyze()
+		status, ans = analyze()
 		print "status =" + str(status)
+		print ans
+		statusDoc()
 				
 		global answers_cache
 		answers_cache = []
+		
 
-
-#################### Program starts here ####################
 while True:
 	print_console()
 	num = input("Enter your function number to run: ")
