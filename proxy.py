@@ -48,8 +48,6 @@ def dns_sniff(pkt):
 	answers_cache.append(pkt)
 
 
-#################### Program starts here ####################
-
 
 
 def print_console():
@@ -73,10 +71,12 @@ def begin(query_name):
 		send(dns_req)
 		thread.join()
 		print "# of Answers got: " + str(len(answers_cache))
+		#print answers_cache[0].show()
 		global answers_cache
 		answers_cache = []
-		
 
+
+#################### Program starts here ####################
 while True:
 	print_console()
 	num = input("Enter your function number to run: ")
