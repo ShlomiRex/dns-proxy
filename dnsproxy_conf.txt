@@ -1,9 +1,0 @@
-authoritative 127.0.0.1`
-recursive 127.0.0.1
-recursive-port 53000
-authoritative-port 53000
-listen 127.0.0.1
-port 53
-chroot /home/shlomi/Desktop/proxy/dnsproxy
-user nobody
-internal 127.0.0.1
