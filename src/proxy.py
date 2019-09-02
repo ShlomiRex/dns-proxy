@@ -12,7 +12,7 @@ IP_DNS_SERVER = "1.1.1.1"
 PORT_SERVER2PROXY = 53000   
 PORT_SERVER_DNS = 53
 
-DEBUG_CACHE = False
+DEBUG_CACHE = True
 
 WAIT4ANSWERS_SECONDS = 4        #time to wait to allow time to gather multiple answers
 REQUEST_WAIT_FOR_THREAD = 0.2
@@ -31,7 +31,7 @@ def print_udp_pkt(pkt):#
 	print str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst)
 
 def dns_sniff(pkt):
-	print_udp_pkt(pkt)
+	#print_udp_pkt(pkt)
 
 	answers_cache.append(pkt)
 
@@ -52,7 +52,7 @@ def print_console():
 def wait4answers():
 	print "[wait4answers] Running..."
 	filter = "udp and port 53 and dst port 53000"
-	sniff(prn=dns_sniff, filter=filter, timeout=WAIT4ANSWERS_SECONDS)
+	sniff(prn=dns_sniff, filter=filter, timeout=WAIT4ANSWERS_SECONDS, iface=["wlp3s0", "lo"])
 	print "[wait4answers] Done"
 
 def hasCache():
@@ -75,22 +75,22 @@ def noCache():
 	for x in range(answers_cache[0][DNS].ancount): 	#compare from the first pkt
 		ans.append(answers_cache[0][DNSRR][x].rdata)
 	for i in range (1, len(answers_cache)):			 #for each other pkts:
-		print ans
-		print answers_cache[i][DNS].show()
+		#print ans
+		#print answers_cache[i][DNS].show()
 		match = False
 		pktAns=[]
 		for x in range(answers_cache[i][DNS].ancount): #compare from other pkt to first pkt
 			if (answers_cache[i][DNSRR][x].rdata in ans):
-				print "match"
+				#print "match"
 				match = True
 				pktAns.append(answers_cache[i][DNSRR][x].rdata)
 		if(not match):
 			return 1, []
-		print pktAns
+		#print pktAns
 		new_ans = []
 		for x in range(len(ans)):					#compare from first pkt to other pkt
 			if (ans[x] in pktAns):
-				print "append"
+				#print "append"
 				new_ans.append(ans[x])
 				#ans.pop(x)
 		ans = new_ans
@@ -118,19 +118,20 @@ def begin(query_name):
 		thread.start()
 		time.sleep(REQUEST_WAIT_FOR_THREAD)
 		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname=query_name))
-		send(dns_req)
+		send(dns_req, iface="wlp3s0", verbose=False)
 		thread.join()
 		print "# of Answers got: " + str(len(answers_cache))+"\n\n"
 
 		#print "analyze answers:"
 		status, ans = analyze()
-		statusDoc()
-				
-		
-		answers_cache = []
-		return status, ans
-		
+		#statusDoc()
+		print cache
 
+		answers_cacheret = answers_cache
+		answers_cache = []
+		return status, ans, answers_cacheret
+		
+'''
 while True:
 	print_console()
 	num = input("Enter your function number to run: ")
@@ -149,3 +150,4 @@ while True:
 	print status
 	print "Answers:"
 	print ans
+'''
