@@ -54,8 +54,6 @@ def print_console():
 def wait4answers():
 	print "[wait4answers] Running..."
 	filter = "udp and port 53 and dst port 53000"
-	print "DNS Response"
-	print "-----------------------------"
 	sniff(prn=dns_sniff, filter=filter, timeout=WAIT4ANSWERS_SECONDS)
 	print "[wait4answers] Done"
 
@@ -63,16 +61,16 @@ def hasCache():
 	ans = cache.get(answers_cache[0][DNS].qd[0].qname) #compare from the cache
 	for i in range (len(answers_cache)):			 #for each pkts:
 		#print answers_cache[i][DNS].show()
-		mache = False
+		match = False
 		pktAns=[]
 		for x in range(answers_cache[i][DNS].ancount): #compare from other pkt to cache
 			if (answers_cache[i][DNSRR][x].rdata in ans):
-				print "mache"
-				mache = True
+				print "match"
+				match = True
 				pktAns.append(answers_cache[i][DNSRR][x].rdata)
-		if(mache):										#return the first maches pkt
+		if(match):										#return the first matchs pkt
 			return 0, pktAns
-	return 1, []										#no pkt mached
+	return 1, []										#no pkt matchd
 
 def noCache():
 	ans = []
@@ -80,14 +78,14 @@ def noCache():
 		ans.append(answers_cache[0][DNSRR][x].rdata)
 	for i in range (1, len(answers_cache)):			 #for each other pkts:
 		#print answers_cache[i][DNS].show()
-		mache = False
+		match = False
 		pktAns=[]
 		for x in range(answers_cache[i][DNS].ancount): #compare from other pkt to first pkt
 			if (answers_cache[i][DNSRR][x].rdata in ans):
-				print "mache"
-				mache = True
+				print "match"
+				match = True
 				pktAns.append(answers_cache[i][DNSRR][x].rdata)
-		if(not mache):
+		if(not match):
 			return 1, []
 		print pktAns
 		for x in range(len(ans)):					#compare from first pkt to other pkt
@@ -104,7 +102,7 @@ def analyze():
 			status, ans = hasCache()
 			if status == 0:
 				return status, ans
-		#no cache or not maches to cache
+		#no cache or not matchs to cache
 		status, ans = noCache()
 		if status == 0:
 			cache[answers_cache[0][DNS].qd[0].qname] = ans
@@ -113,6 +111,7 @@ def analyze():
 		return 2, []
 
 def begin(query_name):
+		global answers_cache
 		thread = Thread(target = wait4answers)
 		thread.start()
 		time.sleep(REQUEST_WAIT_FOR_THREAD)
@@ -125,9 +124,9 @@ def begin(query_name):
 		status, ans = analyze()
 		print "status =" + str(status)
 		print ans
-		statusDoc()
+		#statusDoc()
 				
-		global answers_cache
+		
 		answers_cache = []
 		
 
