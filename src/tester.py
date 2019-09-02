@@ -74,7 +74,7 @@ def test4():
     assert(status == 1)
     assert(ans==[])
 
-def test4():
+def test5():
     print "\n-----------------------------"
     print "[Test5]"
     proxy.WAIT4ANSWERS_SECONDS = NEW_WAIT4ANSWERS_SECONDS
@@ -87,8 +87,9 @@ def test4():
     print "STATUS = " + str(status)
     print "ANS = " + str(ans)
     
-    assert(status == 1)
-    assert(ans==[])
+    assert(status == 0)
+    assert(ans==[attacker.amitdvir_real_ip])
+
 
 #www.geeksforgeeks.org
 
@@ -97,6 +98,7 @@ test1()
 test2()
 test3()
 test4()
+test5()
 '''
 
 Success_Wait4Answers = []
@@ -128,32 +130,28 @@ def autoTester(test):
 
 
 try:
-    max = 3
+    max = 10
     for i in range(max):
         proxy.DEBUG_CACHE = True
         autoTester(test1)
         autoTester(test2)
         autoTester(test3)
         autoTester(test4)
+        autoTester(test5)
     for i in range(max):
         proxy.DEBUG_CACHE = False
         autoTester(test1)
         autoTester(test2)
         autoTester(test3)
         autoTester(test4)
+        autoTester(test5)
 except KeyboardInterrupt:
     pass
 
 
 def Average(lst): 
     return sum(lst) / len(lst) 
-'''
-print "Success Wait4Answers:"
-print Success_Wait4Answers
 
-print "Failiure Wait4Answers:"
-print Failiures_Wait4Answers
-'''
 print "Average success time for Wait4Answers:"
 print Average(Success_Wait4Answers)
 
@@ -165,9 +163,3 @@ print str(min(Success_Wait4Answers))
 
 print "Minimum time for Spam:"
 print str(min(Success_SpamRND))
-
-
-'''
-print "Average failiure time for Wait4Answers:"
-print Average(Failiures_Wait4Answers)
-'''
