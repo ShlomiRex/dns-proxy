@@ -1,274 +1,153 @@
 #!/usr/bin/env python
 
-import struct
 from threading import Thread
 from scapy.all import *
+import time
 
 #################### Constants ####################
 
-IP_LOCALHOST = "172.17.0.2" #Your pc local ip
-IP_CLIENT = "10.0.0.2"      #Client IP (that needs to use the proxy)
-IP_DNS_SERVER = "10.0.0.151" #My own dns server at home (for you it's usually the gateway)
+IP_LOCALHOST = "127.0.0.1"
+IP_DNS_SERVER = "1.1.1.1"
 
-							  #src port of client is random
-							  #dst port of client is 53 at default
-PORT_CLIENT2PROXY = 53000     #Port of Proxy that listens to client
-PORT_SERVER2PROXY = 53001     #Port of proxy that listens to server's answers
+PORT_SERVER2PROXY = 53000   
+PORT_SERVER_DNS = 53
 
-INTERFACE_NAME = "eth0"       #Network interface name to capture Client2Proxy packets
+DEBUG_CACHE = True
 
-DEBUG_CLIENT2PROXY = False
-DEBUG_SERVER2PROXY = False
-DEBUG_WAIT4ANSWERS = True
-
-WAIT4ANSWERS_MS = 1500        #miliseconds to wait to allow time to gather multiple answers
+WAIT4ANSWERS_SECONDS = 4        #time to wait to allow time to gather multiple answers
+REQUEST_WAIT_FOR_THREAD = 0.2
 
 
 #################### Global Variables1e ####################
-
-answers_time = 0   # If it goes above WAIT4ANSWERS_MS then stop gathering answers
 answers_cache = []
+cache = {}
 
-#Client <---> Proxy
-#Proxy <---> Client
-class Client2Proxy(Thread):
-	last_dns_packet = None
-	def __init__(self):
-		super(Client2Proxy, self).__init__()
+def print_udp_pkt(pkt):#
+	ip_src = pkt[IP].src
+	ip_dst = pkt[IP].dst
+	port_src = pkt[UDP].sport
+	port_dst = pkt[UDP].dport
 
-	def run(self):
-		self.prints("[Client2Proxy] Running...")
-		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
-		filter = "ip dst host " + IP_LOCALHOST + " and udp"
-		#filter = "ip and udp"
-		sniff(iface= INTERFACE_NAME, prn= self.dns_sniff, filter=filter)
-		self.prints("[Client2Proxy] Done")
+	print str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst)
 
-	def dns_sniff(self, pkt):
-		#Only DNS in UDP protocol
-		if pkt.haslayer(DNS) == False or pkt.haslayer(DNSQR) == False:
-			return
-		if pkt[DNS].qr == "1":
-			return
-		ip_src = pkt[IP].src
-		ip_dst = pkt[IP].dst
+def dns_sniff(pkt):
+	#print_udp_pkt(pkt)
 
-		port_src = pkt[UDP].sport #Usually random number, not useful
-		port_dst = pkt[UDP].dport
+	answers_cache.append(pkt)
 
-		if port_dst != PORT_CLIENT2PROXY:
-			return
-
-		#Skip double packets (leave and enter)
-		#See: https://stackoverflow.com/questions/52232080/scapy-sniff-the-packet-multiple-times
-		if self.last_dns_packet == pkt:
-			return
-
-		self.last_dns_packet = pkt
-
-		if pkt.getlayer(DNS).qr == 0:
-			#Request
-			self.prints("[Client2Proxy] DNS Request")
-			self.prints("-----------------------------")
-			pass
-		elif pkt.getlayer(DNS).qr == 1:
-			#Response
-			self.prints("[Client2Proxy] DNS Response")
-			self.prints("-----------------------------")
-			pass
-
-		#print_udp_pkt(pkt)
-		#Type your code here
-
-		#print pkt[DNSQR].summary()
-		qname = pkt[DNSQR].qname
-		rd = pkt[DNS].rd
-		qr = pkt[DNS].qr
-
-		self.prints("qr = " + str(qr))
-		self.prints("rd = " + str(rd))
-
-		#print "rd = " + str(rd)
-
-		dns_req = IP(dst=IP_DNS_SERVER, src=IP_LOCALHOST)/UDP(sport=PORT_SERVER2PROXY, dport=53)/DNS(rd=1, qd=DNSQR(qname=qname))
-		#print dns_req[UDP].show()
-		send(dns_req, verbose=False)
+def statusDoc():
+	print "[0] worked well"
+	print "[1] conflict"
+	print "[2] no masseges returns"
 
 
-	def print_udp_pkt(pkt):#
-		ip_src = pkt[IP].src
-		ip_dst = pkt[IP].dst
-		port_src = pkt[UDP].sport
-		port_dst = pkt[UDP].dport
-
-		self.prints(str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst))
-
-	def prints(self, str):
-		if DEBUG_CLIENT2PROXY:
-			print str
-
-
-
-
-#Proxy <---> Server
-#Server <---> Proxy
-class Server2Proxy(Thread):
-	last_dns_packet = None
-	def __init__(self):
-		super(Server2Proxy, self).__init__()
-
-	def run(self):
-		self.prints("[Server2Proxy] Running...")
-
-		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
-		filter = "ip dst host " + IP_LOCALHOST + " and udp and src host " + IP_DNS_SERVER
-		#filter = "ip and udp"
-		sniff(prn= self.dns_sniff , filter=filter)
-
-		self.prints("[Server2Proxy] Done")
-	def dns_sniff(self, pkt):
-		#Only DNS in UDP protocol
-		if pkt.haslayer(DNS) == False or pkt.haslayer(DNSRR) == False:
-			return
-
-		if pkt[DNS].qr == "0":
-			return
-
-		ip_src = pkt[IP].src
-		ip_dst = pkt[IP].dst
-
-		port_src = pkt[UDP].sport #Usually random number, not useful
-		port_dst = pkt[UDP].dport
-
-		if port_dst != PORT_SERVER2PROXY:
-			return
-		#Skip double packets (leave and enter)
-		#See: https://stackoverflow.com/questions/52232080/scapy-sniff-the-packet-multiple-times
-		if self.last_dns_packet == pkt:
-			returnIP_LOCALHOST
-
-		self.last_dns_packet = pkt
-
-		if pkt.getlayer(DNS).qr == 0:
-			#Request
-			self.prints("")
-			self.prints("[Server2Proxy] DNS Request")
-			self.prints("-----------------------------")
-			pass
-		elif pkt.getlayer(DNS).qr == 1:
-			#Response
-			self.prints("[Server2Proxy] DNS Response")
-			self.prints("-----------------------------")
-			pass
-
-		self.print_udp_pkt(pkt)
-		#Type your code here
-		qname = pkt[DNSQR].qname
-		rd = pkt[DNS].rd
-		rrname = pkt[DNSRR].rrname
-		qr = pkt[DNS].qr
-
-		'''
-		self.prints("rd = " + str(rd))
-		self.prints("qname = " + qname)
-		self.prints("rrname = " + rrname)
-		self.prints("qr = " + str(qr))
-		'''
-
-		
-
-		#TODO: Change dst ip to be the origional IP of the requestee
-		dns_res = IP(dst=IP_CLIENT, src=IP_LOCALHOST)/UDP(sport=PORT_SERVER2PROXY, dport=53)/pkt[DNS]
-		
-		#dns_res = pkt
-		#dns_res[IP].src = IP_LOCALHOST
-		#dns_res[IP].dst = IP_LOCALHOST
-		#dns_res[UDP].sport = PORT_SERVER2PROXY
-		#dns_res[UDP].dport = 53
-
-		'''
-		self.prints("\n\n\n\n\n")
-		#self.prints(dns_res[DNSRR].show())
-		self.prints(dns_res[IP].show())
-		self.prints("\n\n\n\n\n")
-		'''
-
-		#self.prints(dns_res[IP].show())
-		#self.print_udp_pkt(dns_res)
-		send(dns_res, verbose=False)
-
-
-	
-	def prints(self, str):
-		if DEBUG_SERVER2PROXY:
-			print str
-
-	def print_udp_pkt(self, pkt):#
-		ip_src = pkt[IP].src
-		ip_dst = pkt[IP].dst
-		port_src = pkt[UDP].sport
-		port_dst = pkt[UDP].dport
-
-		self.prints(str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst))
-
-# Main Thread
-class Proxy(Thread):
-	def __init__(self):
-		super(Proxy, self).__init__()
-
-	def run(self):
-		try:
-			print "[Proxy] Running..."
-
-			self.c2p = Client2Proxy()
-			self.p2s = Server2Proxy()
-
-			#self.c2p.daemon = True
-			#self.p2s.daemon = True
-
-			self.c2p.start()
-			self.p2s.start()
-
-			self.c2p.join()
-			self.p2s.join()
-
-			print "[Proxy] Done"
-
-		except KeyboardInterrupt:
-			print('Interrupted')
-		try:
-			sys.exit(0)
-		except SystemExit:
-			os._exit(0)
-
-
-
-class Wait4Answers(Thread):
-	def __init__(self):
-		super(Wait4Answers, self).__init__()
-
-	def run(self):
-		self.prints("[Wait4Answers] Running...")
-		#filter = "ip dst host " + IP_LOCALHOST + " and dst port " + str(PORT_CLIENT2PROXY) + " and udp"
-		filter = "ip dst host " + IP_LOCALHOST + " and udp and src host " + IP_DNS_SERVER
-		#filter = "ip and udp"
-		sniff(prn= self.dns_sniff , filter=filter)
-		self.prints("[Wait4Answers] Done")
-	
-	def prints(self, str):
-		if DEBUG_WAIT4ANSWERS:
-			print str
-	
-	def print_udp_pkt(pkt):#
-		ip_src = pkt[IP].src
-		ip_dst = pkt[IP].dst
-		port_src = pkt[UDP].sport
-		port_dst = pkt[UDP].dport
-
-		self.prints(str(ip_src) + ":" + str(port_src) + " -> " + str(ip_dst) + ":" + str(port_dst))
-
-
+def print_console():
+	print "[0] <exit>"
+	print "[1] Google"
+	print "[2] YouTube"
+	print "[3] Amit Dvir"
 
 #################### Program starts here ####################
 
-Proxy().start()
+def wait4answers():
+	print "[wait4answers] Running..."
+	filter = "udp and port 53 and dst port 53000"
+	sniff(prn=dns_sniff, filter=filter, timeout=WAIT4ANSWERS_SECONDS, iface=["wlp3s0", "lo"])
+	print "[wait4answers] Done"
+
+def hasCache():
+	ans = cache.get(answers_cache[0][DNS].qd[0].qname) #compare from the cache
+	for i in range (len(answers_cache)):			 #for each pkts:
+		#print answers_cache[i][DNS].show()
+		match = False
+		pktAns=[]
+		for x in range(answers_cache[i][DNS].ancount): #compare from other pkt to cache
+			if (answers_cache[i][DNSRR][x].rdata in ans):
+				#print "match"
+				match = True
+				pktAns.append(answers_cache[i][DNSRR][x].rdata)
+		if(match):										#return the first matchs pkt
+			return 0, pktAns
+	return 1, []										#no pkt matchd
+
+def noCache():
+	ans = []
+	for x in range(answers_cache[0][DNS].ancount): 	#compare from the first pkt
+		ans.append(answers_cache[0][DNSRR][x].rdata)
+	for i in range (1, len(answers_cache)):			 #for each other pkts:
+		#print ans
+		#print answers_cache[i][DNS].show()
+		match = False
+		pktAns=[]
+		for x in range(answers_cache[i][DNS].ancount): #compare from other pkt to first pkt
+			if (answers_cache[i][DNSRR][x].rdata in ans):
+				#print "match"
+				match = True
+				pktAns.append(answers_cache[i][DNSRR][x].rdata)
+		if(not match):
+			return 1, []
+		#print pktAns
+		new_ans = []
+		for x in range(len(ans)):					#compare from first pkt to other pkt
+			if (ans[x] in pktAns):
+				#print "append"
+				new_ans.append(ans[x])
+				#ans.pop(x)
+		ans = new_ans
+		if len(ans)==0:
+			return 1, []
+	return 0, ans
+
+def analyze():
+	if(len(answers_cache)>0):
+		if (not cache.get(answers_cache[0][DNS].qd[0].qname) is None) and (DEBUG_CACHE):
+			status, ans = hasCache()
+			if status == 0:
+				return status, ans
+		#no cache or not matchs to cache
+		status, ans = noCache()
+		if status == 0:
+			cache[answers_cache[0][DNS].qd[0].qname] = ans
+		return status, ans
+	else:
+		return 2, []
+
+def begin(query_name):
+		global answers_cache
+		thread = Thread(target = wait4answers)
+		thread.start()
+		time.sleep(REQUEST_WAIT_FOR_THREAD)
+		dns_req = IP(dst=IP_DNS_SERVER)/UDP(sport=PORT_SERVER2PROXY, dport=PORT_SERVER_DNS)/DNS(rd=1, qd=DNSQR(qname=query_name))
+		send(dns_req, iface="wlp3s0", verbose=False)
+		thread.join()
+		print "# of Answers got: " + str(len(answers_cache))+"\n\n"
+
+		#print "analyze answers:"
+		status, ans = analyze()
+		#statusDoc()
+		print cache
+
+		answers_cacheret = answers_cache
+		answers_cache = []
+		return status, ans, answers_cacheret
+		
+'''
+while True:
+	print_console()
+	num = input("Enter your function number to run: ")
+	status = 0
+	ans = []
+
+	if num == 0:
+		exit()
+	elif num == 1:
+		status, ans = begin("www.google.com")
+	elif num == 2:
+		status, ans = begin("www.youtube.com")
+	elif num == 3:
+		status, ans = begin("www.amitdvir.com")
+	print "Status:"
+	print status
+	print "Answers:"
+	print ans
+'''
